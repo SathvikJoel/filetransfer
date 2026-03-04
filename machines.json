@@ -1,0 +1,8 @@
+{
+  "machines": [
+    { "name": "machine1", "host": "https://REPLACE-WITH-CLOUDFLARE-URL.trycloudflare.com" },
+    { "name": "machine2", "host": "https://REPLACE-WITH-CLOUDFLARE-URL.trycloudflare.com" },
+    { "name": "machine3", "host": "https://REPLACE-WITH-CLOUDFLARE-URL.trycloudflare.com" }
+  ],
+  "this_machine": "machine1"
+}
