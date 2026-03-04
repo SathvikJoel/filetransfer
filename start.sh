@@ -55,12 +55,17 @@ if pgrep -f "cloudflared tunnel" &>/dev/null; then
 fi
 
 # ── Activate conda environment ──────────────────────────────────────────────
+# Temporarily disable nounset (-u) because conda's Qt activation scripts
+# reference unset variables (QT_XCB_GL_INTEGRATION etc.).
+set +u
 eval "$(conda shell.bash hook)"
 if ! conda env list | grep -qw "$ENV_NAME"; then
     echo -e "${RED}❌ Conda environment '$ENV_NAME' not found. Run setup_machine.sh first.${NC}"
+    set -u
     exit 1
 fi
 conda activate "$ENV_NAME"
+set -u
 echo "📦 Activated conda environment: $ENV_NAME"
 
 # ── Trap to clean up on exit ─────────────────────────────────────────────────
