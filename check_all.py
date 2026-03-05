@@ -26,7 +26,9 @@ def load_machines() -> list[dict]:
     return cfg["machines"]
 
 
-async def check_machine(client: httpx.AsyncClient, machine: dict) -> tuple[str, str, bool, str]:
+async def check_machine(
+    client: httpx.AsyncClient, machine: dict
+) -> tuple[str, str, bool, str]:
     name, host = machine["name"], machine["host"]
     try:
         resp = await client.get(f"{host}/health")

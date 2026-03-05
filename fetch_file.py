@@ -28,7 +28,7 @@ import httpx
 # Config
 # ---------------------------------------------------------------------------
 MACHINES_FILE = Path(__file__).parent / "machines.json"
-REQUEST_TIMEOUT = 30.0   # seconds for HTTP requests
+REQUEST_TIMEOUT = 30.0  # seconds for HTTP requests
 MAX_RETRIES = 3
 
 
@@ -58,7 +58,9 @@ async def list_files_on_all(directory: str, pattern: str) -> None:
         print("No remote machines configured.")
         return
 
-    print(f"Listing files under {directory} (pattern={pattern}) on {len(remotes)} machine(s)...\n")
+    print(
+        f"Listing files under {directory} (pattern={pattern}) on {len(remotes)} machine(s)...\n"
+    )
 
     async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT, verify=False) as client:
         tasks = []
@@ -67,10 +69,14 @@ async def list_files_on_all(directory: str, pattern: str) -> None:
         await asyncio.gather(*tasks)
 
 
-async def _list_on_machine(client: httpx.AsyncClient, machine: dict, directory: str, pattern: str) -> None:
+async def _list_on_machine(
+    client: httpx.AsyncClient, machine: dict, directory: str, pattern: str
+) -> None:
     name, host = machine["name"], machine["host"]
     try:
-        resp = await client.get(f"{host}/list-files", params={"path": directory, "pattern": pattern})
+        resp = await client.get(
+            f"{host}/list-files", params={"path": directory, "pattern": pattern}
+        )
         if resp.status_code == 200:
             data = resp.json()
             print(f"── {name} ({host}) — {data['total_files']} file(s) ──")
@@ -86,7 +92,9 @@ async def _list_on_machine(client: httpx.AsyncClient, machine: dict, directory: 
 # ---------------------------------------------------------------------------
 # Fetch mode
 # ---------------------------------------------------------------------------
-async def fetch_file(file_path: str, destination: str, from_machine: str | None) -> None:
+async def fetch_file(
+    file_path: str, destination: str, from_machine: str | None
+) -> None:
     machines, this = load_machines()
     remotes = remote_machines(machines, this)
 
@@ -133,7 +141,9 @@ async def fetch_file(file_path: str, destination: str, from_machine: str | None)
             elapsed = time.time() - start_time
 
             if success:
-                print(f"[4/4] ✅ Transfer complete. {size_human} received in {elapsed:.1f}s → {dest}")
+                print(
+                    f"[4/4] ✅ Transfer complete. {size_human} received in {elapsed:.1f}s → {dest}"
+                )
                 return
             else:
                 print(f"  ⚠️  Attempt {attempt}/{MAX_RETRIES} failed.")
@@ -147,7 +157,9 @@ async def fetch_file(file_path: str, destination: str, from_machine: str | None)
 async def _check_file(machine: dict, file_path: str) -> bool:
     async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT, verify=False) as client:
         try:
-            resp = await client.get(f"{machine['host']}/check-file", params={"path": file_path})
+            resp = await client.get(
+                f"{machine['host']}/check-file", params={"path": file_path}
+            )
             if resp.status_code == 200:
                 return resp.json().get("exists", False)
         except Exception:
@@ -158,7 +170,9 @@ async def _check_file(machine: dict, file_path: str) -> bool:
 async def _search_all_machines(machines: list[dict], file_path: str) -> dict | None:
     """Check all machines in parallel, return the first one that has the file."""
     async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT, verify=False) as client:
-        tasks = {m["name"]: _check_file_with_client(client, m, file_path) for m in machines}
+        tasks = {
+            m["name"]: _check_file_with_client(client, m, file_path) for m in machines
+        }
         results = await asyncio.gather(*tasks.values(), return_exceptions=True)
         for machine, result in zip(machines, results):
             if result is True:
@@ -166,9 +180,13 @@ async def _search_all_machines(machines: list[dict], file_path: str) -> dict | N
     return None
 
 
-async def _check_file_with_client(client: httpx.AsyncClient, machine: dict, file_path: str) -> bool:
+async def _check_file_with_client(
+    client: httpx.AsyncClient, machine: dict, file_path: str
+) -> bool:
     try:
-        resp = await client.get(f"{machine['host']}/check-file", params={"path": file_path})
+        resp = await client.get(
+            f"{machine['host']}/check-file", params={"path": file_path}
+        )
         if resp.status_code == 200:
             return resp.json().get("exists", False)
     except Exception:
@@ -179,7 +197,9 @@ async def _check_file_with_client(client: httpx.AsyncClient, machine: dict, file
 async def _request_send(machine: dict, file_path: str) -> dict:
     """Call POST /send-file and return the response data."""
     async with httpx.AsyncClient(timeout=60.0, verify=False) as client:
-        resp = await client.post(f"{machine['host']}/send-file", json={"path": file_path})
+        resp = await client.post(
+            f"{machine['host']}/send-file", json={"path": file_path}
+        )
         if resp.status_code != 200:
             raise RuntimeError(f"send-file failed ({resp.status_code}): {resp.text}")
         data = resp.json()
@@ -190,9 +210,14 @@ async def _request_send(machine: dict, file_path: str) -> dict:
 
 def _run_croc_receive(croc_code: str, dest: Path) -> bool:
     """Run croc on the local machine to receive the file."""
-    cmd = ["croc", "--yes", croc_code]
+    # croc v10+ uses CROC_SECRET env var for the code phrase
+    env = os.environ.copy()
+    env["CROC_SECRET"] = croc_code
+    cmd = ["croc", "--yes"]
     try:
-        result = subprocess.run(cmd, cwd=str(dest), timeout=3600, capture_output=True, text=True)
+        result = subprocess.run(
+            cmd, cwd=str(dest), timeout=3600, capture_output=True, text=True, env=env
+        )
         if result.returncode == 0:
             return True
         print(f"  croc stderr: {result.stderr.strip()}")
@@ -201,7 +226,9 @@ def _run_croc_receive(croc_code: str, dest: Path) -> bool:
         print("  croc timed out (1 hour).")
         return False
     except FileNotFoundError:
-        print("  ❌ croc is not installed. Install it: curl https://getcroc.schollz.com | bash")
+        print(
+            "  ❌ croc is not installed. Install it: curl https://getcroc.schollz.com | bash"
+        )
         sys.exit(1)
 
 
@@ -214,11 +241,30 @@ def main() -> None:
     )
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument("--file", type=str, help="Absolute path of the file to fetch")
-    group.add_argument("--list", type=str, metavar="DIR", help="List files under a directory on all machines")
+    group.add_argument(
+        "--list",
+        type=str,
+        metavar="DIR",
+        help="List files under a directory on all machines",
+    )
 
-    parser.add_argument("--destination", type=str, help="Local destination directory (required with --file)")
-    parser.add_argument("--from", dest="from_machine", type=str, help="Fetch from a specific machine name")
-    parser.add_argument("--pattern", type=str, default="*", help="Glob pattern for --list mode (default: *)")
+    parser.add_argument(
+        "--destination",
+        type=str,
+        help="Local destination directory (required with --file)",
+    )
+    parser.add_argument(
+        "--from",
+        dest="from_machine",
+        type=str,
+        help="Fetch from a specific machine name",
+    )
+    parser.add_argument(
+        "--pattern",
+        type=str,
+        default="*",
+        help="Glob pattern for --list mode (default: *)",
+    )
 
     args = parser.parse_args()
 
