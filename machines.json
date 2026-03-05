@@ -1,8 +1,8 @@
 {
   "machines": [
-    { "name": "machine1", "host": "https://REPLACE-WITH-CLOUDFLARE-URL.trycloudflare.com" },
-    { "name": "machine2", "host": "https://REPLACE-WITH-CLOUDFLARE-URL.trycloudflare.com" },
-    { "name": "machine3", "host": "https://REPLACE-WITH-CLOUDFLARE-URL.trycloudflare.com" }
+    { "name": "b200", "host": "https://discovered-only-kay-organizer.trycloudflare.com" },
+    { "name": "20", "host": "https://cindy-execute-superintendent-holdings.trycloudflare.com" },
+    { "name": "57", "host": "https://optics-ppm-tracking-aruba.trycloudflare.com" }
   ],
-  "this_machine": "machine1"
+  "this_machine": "57"
 }
