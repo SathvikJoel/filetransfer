@@ -50,6 +50,7 @@ transfers: dict[str, dict] = {}
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _human_size(n_bytes: int) -> str:
     """Return a human-readable size string."""
     for unit in ("B", "KB", "MB", "GB", "TB"):
@@ -87,7 +88,12 @@ async def _monitor_transfer(transfer_id: str, proc: asyncio.subprocess.Process) 
                 stderr_out = (await proc.stderr.read()).decode(errors="replace")
             info["status"] = "failed"
             info["error"] = stderr_out or f"croc exited with code {retcode}"
-            logger.error("Transfer %s failed (rc=%d): %s", transfer_id[:8], retcode, info["error"])
+            logger.error(
+                "Transfer %s failed (rc=%d): %s",
+                transfer_id[:8],
+                retcode,
+                info["error"],
+            )
     except Exception:
         info["status"] = "failed"
         info["error"] = traceback.format_exc()
@@ -124,7 +130,9 @@ async def check_file(path: str = Query(..., description="Absolute path to the fi
             "path": str(p),
             "size_bytes": stat.st_size,
             "size_human": _human_size(stat.st_size),
-            "last_modified": datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc).isoformat(),
+            "last_modified": datetime.fromtimestamp(
+                stat.st_mtime, tz=timezone.utc
+            ).isoformat(),
         }
     logger.info("check-file: NOT FOUND %s", path)
     return {"exists": False, "path": str(p)}
@@ -150,7 +158,9 @@ async def list_files(
                     "path": str(f),
                     "size_bytes": stat.st_size,
                     "size_human": _human_size(stat.st_size),
-                    "last_modified": datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc).isoformat(),
+                    "last_modified": datetime.fromtimestamp(
+                        stat.st_mtime, tz=timezone.utc
+                    ).isoformat(),
                 }
             )
     logger.info("list-files: %d files found under %s", len(files), path)
@@ -171,21 +181,20 @@ async def send_file(req: SendFileRequest):
 
     stat = p.stat()
     transfer_id = str(uuid.uuid4())
-    short_code = uuid.uuid4().hex[:8]
-    croc_code = f"transfer-{short_code}"
 
-    logger.info("send-file: transfer_id=%s croc_code=%s", transfer_id[:8], croc_code)
+    logger.info("send-file: transfer_id=%s", transfer_id[:8])
 
-    # Launch croc send
-    cmd = ["croc", "send", "--code", croc_code, str(p)]
+    # Launch croc send — let croc auto-generate the code phrase
+    cmd = ["croc", "send", str(p)]
     proc = await asyncio.create_subprocess_exec(
         *cmd,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
     )
 
-    # Poll until croc is ready (up to 15 seconds)
+    # Poll until croc is ready and parse the auto-generated code (up to 15 seconds)
     ready = False
+    croc_code = ""
     deadline = asyncio.get_event_loop().time() + 15
     collected_lines: list[str] = []
     assert proc.stdout is not None
@@ -205,12 +214,16 @@ async def send_file(req: SendFileRequest):
         collected_lines.append(line)
         logger.info("croc startup [%s]: %s", transfer_id[:8], line)
 
-        # croc prints "Code is: <code>" when ready to accept a receiver
-        if "code is:" in line.lower() or "on the other computer" in line.lower():
+        # croc v10+ prints "Code is: <code>" when ready
+        if "code is:" in line.lower():
+            # Extract the code from e.g. "Code is: 1234-word-word-word"
+            parts = line.split(":", 1)
+            if len(parts) == 2:
+                croc_code = parts[1].strip()
             ready = True
             break
 
-    if not ready:
+    if not ready or not croc_code:
         # Check stderr for errors
         proc.kill()
         stderr_data = ""
@@ -220,7 +233,7 @@ async def send_file(req: SendFileRequest):
         logger.error("send-file: %s", detail)
         raise HTTPException(status_code=500, detail=detail)
 
-    logger.info("send-file: croc ready for transfer %s", transfer_id[:8])
+    logger.info("send-file: croc ready for transfer %s, code=%s", transfer_id[:8], croc_code)
 
     transfers[transfer_id] = {
         "transfer_id": transfer_id,
@@ -251,7 +264,9 @@ async def send_file(req: SendFileRequest):
 async def transfer_status(transfer_id: str):
     info = transfers.get(transfer_id)
     if not info:
-        raise HTTPException(status_code=404, detail=f"Transfer not found: {transfer_id}")
+        raise HTTPException(
+            status_code=404, detail=f"Transfer not found: {transfer_id}"
+        )
     return {
         "transfer_id": info["transfer_id"],
         "croc_code": info["croc_code"],
