@@ -185,11 +185,12 @@ async def send_file(req: SendFileRequest):
     logger.info("send-file: transfer_id=%s", transfer_id[:8])
 
     # Launch croc send — let croc auto-generate the code phrase
+    # croc writes its output to stderr, so merge stderr into stdout
     cmd = ["croc", "send", str(p)]
     proc = await asyncio.create_subprocess_exec(
         *cmd,
         stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.STDOUT,
     )
 
     # Poll until croc is ready and parse the auto-generated code (up to 15 seconds)
@@ -224,16 +225,14 @@ async def send_file(req: SendFileRequest):
             break
 
     if not ready or not croc_code:
-        # Check stderr for errors
         proc.kill()
-        stderr_data = ""
-        if proc.stderr:
-            stderr_data = (await proc.stderr.read()).decode(errors="replace")
-        detail = f"croc failed to become ready. stdout: {collected_lines}, stderr: {stderr_data}"
+        detail = f"croc failed to become ready. output: {collected_lines}"
         logger.error("send-file: %s", detail)
         raise HTTPException(status_code=500, detail=detail)
 
-    logger.info("send-file: croc ready for transfer %s, code=%s", transfer_id[:8], croc_code)
+    logger.info(
+        "send-file: croc ready for transfer %s, code=%s", transfer_id[:8], croc_code
+    )
 
     transfers[transfer_id] = {
         "transfer_id": transfer_id,
