@@ -2,3 +2,4 @@
 tunnel_url.txt
 croc-*
 __pycache__/
+machines.json
