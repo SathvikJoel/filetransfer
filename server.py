@@ -176,10 +176,15 @@ class SendFileRequest(BaseModel):
 async def send_file(req: SendFileRequest):
     logger.info("send-file: %s", req.path)
     p = Path(req.path)
-    if not p.exists() or not p.is_file():
-        raise HTTPException(status_code=404, detail=f"File not found: {req.path}")
+    if not p.exists():
+        raise HTTPException(status_code=404, detail=f"Path not found: {req.path}")
 
-    stat = p.stat()
+    is_dir = p.is_dir()
+    if is_dir:
+        # Calculate total size of directory
+        total_bytes = sum(f.stat().st_size for f in p.rglob("*") if f.is_file())
+    else:
+        total_bytes = p.stat().st_size
     transfer_id = str(uuid.uuid4())
 
     logger.info("send-file: transfer_id=%s", transfer_id[:8])
@@ -239,8 +244,8 @@ async def send_file(req: SendFileRequest):
         "croc_code": croc_code,
         "path": str(p),
         "status": "ready",
-        "size_bytes": stat.st_size,
-        "size_human": _human_size(stat.st_size),
+        "size_bytes": total_bytes,
+        "size_human": _human_size(total_bytes),
         "started_at": _now_iso(),
         "error": None,
     }
@@ -253,8 +258,8 @@ async def send_file(req: SendFileRequest):
         "croc_code": croc_code,
         "path": str(p),
         "status": "ready",
-        "size_bytes": stat.st_size,
-        "size_human": _human_size(stat.st_size),
+        "size_bytes": total_bytes,
+        "size_human": _human_size(total_bytes),
     }
 
 
